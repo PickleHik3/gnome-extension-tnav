@@ -4,7 +4,6 @@ import GLib from 'gi://GLib';
 import Mtk from 'gi://Mtk';
 import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
-import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 export default class TouchNavBackExtension extends Extension {
@@ -115,24 +114,36 @@ export default class TouchNavBackExtension extends Extension {
             this._removePanelButton();
 
         const box = ['left', 'center', 'right'].includes(section) ? section : 'right';
-        const panelButton = new PanelMenu.Button(0.0, 'tnav-back-panel-button', true);
+        const panelButton = new St.Button({
+            style_class: 'panel-button',
+            reactive: true,
+            can_focus: true,
+            track_hover: true,
+        });
         panelButton.add_child(new St.Icon({
             icon_name: 'go-previous-symbolic',
             style_class: 'system-status-icon',
         }));
-        panelButton.connect('button-press-event', () => {
+        panelButton.connect('clicked', () => {
             this._triggerBack();
-            return Clutter.EVENT_STOP;
         });
-        Main.panel.addToStatusArea('tnav-back-panel-button', panelButton, 0, box);
+        this._getPanelBox(box).insert_child_at_index(panelButton, 0);
         this._panelButton = panelButton;
     }
 
     _removePanelButton() {
         if (!this._panelButton)
             return;
+        this._panelButton.get_parent()?.remove_child(this._panelButton);
         this._panelButton.destroy();
         this._panelButton = null;
+    }
+
+    _getPanelBox(section) {
+        const left = Main.panel._leftBox ?? Main.panel.leftBox;
+        const center = Main.panel._centerBox ?? Main.panel.centerBox;
+        const right = Main.panel._rightBox ?? Main.panel.rightBox;
+        return section === 'left' ? left : section === 'center' ? center : right;
     }
 
     _placeBottomRight() {

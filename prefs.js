@@ -23,25 +23,27 @@ export default class TouchNavBackPrefs extends ExtensionPreferences {
 
         const sections = ['left', 'center', 'right'];
         const sectionLabels = ['Left', 'Center', 'Right'];
-        const sectionRow = new Adw.ComboRow({
+        const sectionRow = new Adw.ActionRow({
             title: 'Panel Section',
             subtitle: 'Used when Floating is disabled',
-            model: Gtk.StringList.new(sectionLabels),
         });
+        const sectionDropdown = Gtk.DropDown.new_from_strings(sectionLabels);
+        sectionDropdown.valign = Gtk.Align.CENTER;
+        sectionRow.add_suffix(sectionDropdown);
 
         const syncSectionFromSettings = () => {
             const value = settings.get_string('panel-section');
             const idx = Math.max(0, sections.indexOf(value));
-            if (sectionRow.selected !== idx)
-                sectionRow.selected = idx;
+            if (sectionDropdown.selected !== idx)
+                sectionDropdown.selected = idx;
         };
 
         const syncVisibility = () => {
             sectionRow.visible = !settings.get_boolean('floating');
         };
 
-        sectionRow.connect('notify::selected', () => {
-            settings.set_string('panel-section', sections[sectionRow.selected] ?? 'right');
+        sectionDropdown.connect('notify::selected', () => {
+            settings.set_string('panel-section', sections[sectionDropdown.selected] ?? 'right');
         });
 
         settings.connect('changed::panel-section', syncSectionFromSettings);
