@@ -257,6 +257,7 @@ export default class TouchNavExtension extends Extension {
         this._floatingButton.visible = true;
         this._ensureHomePosition();
         this._snapHomeToNearestEdge();
+        this._saveHomePosition();
         this._snapToHomePosition({animate: false});
         this._setVisualState('idle');
     }
@@ -362,6 +363,12 @@ export default class TouchNavExtension extends Extension {
         const sf = St.ThemeContext.get_for_stage(global.stage).scaleFactor;
         const margin = Math.floor(18 * sf);
         const size = this._floatingButton.width;
+        const saved = this._loadSavedHomePosition();
+
+        if (saved) {
+            this._floatingState.homePosition = saved;
+            return;
+        }
 
         this._floatingState.homePosition = {
             x: monitor.x + monitor.width - size - margin,
@@ -477,6 +484,7 @@ export default class TouchNavExtension extends Extension {
             const [x, y] = this._floatingButton.get_position();
             state.homePosition = {x, y};
             this._snapHomeToNearestEdge();
+            this._saveHomePosition();
             this._snapToHomePosition({animate: true});
             state.repositionMode = false;
             this._setVisualState('idle');
@@ -581,6 +589,27 @@ export default class TouchNavExtension extends Extension {
             monitor.y + margin,
             Math.min(this._floatingState.homePosition.y, monitor.y + monitor.height - size - margin),
         );
+    }
+
+    _loadSavedHomePosition() {
+        if (!this._settings || !this._hasSetting('floating-home-x') || !this._hasSetting('floating-home-y'))
+            return null;
+
+        const x = this._settings.get_int('floating-home-x');
+        const y = this._settings.get_int('floating-home-y');
+        if (x < 0 || y < 0)
+            return null;
+        return {x, y};
+    }
+
+    _saveHomePosition() {
+        if (!this._settings || !this._floatingState.homePosition)
+            return;
+        if (!this._hasSetting('floating-home-x') || !this._hasSetting('floating-home-y'))
+            return;
+
+        this._settings.set_int('floating-home-x', Math.round(this._floatingState.homePosition.x));
+        this._settings.set_int('floating-home-y', Math.round(this._floatingState.homePosition.y));
     }
 
     _monitorForPoint(x, y) {

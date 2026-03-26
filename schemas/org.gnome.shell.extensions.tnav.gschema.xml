@@ -37,6 +37,18 @@
       <description>Hex color used for the floating button background when GNOME default color is disabled.</description>
     </key>
 
+    <key name="floating-home-x" type="i">
+      <default>-1</default>
+      <summary>Floating home X</summary>
+      <description>Saved X coordinate for floating button home position.</description>
+    </key>
+
+    <key name="floating-home-y" type="i">
+      <default>-1</default>
+      <summary>Floating home Y</summary>
+      <description>Saved Y coordinate for floating button home position.</description>
+    </key>
+
     <key name="click-action" type="s">
       <default>'back'</default>
       <choices>
