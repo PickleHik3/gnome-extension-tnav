@@ -61,6 +61,7 @@ export default class TouchNavExtension extends Extension {
         this._settingsSignalIds = [];
         this._interfaceSettings = null;
         this._interfaceSettingsChangedId = 0;
+        this._switcherSafetyTimeoutId = 0;
         this._visualState = 'idle';
         this._altHeld = false;
 
@@ -71,6 +72,7 @@ export default class TouchNavExtension extends Extension {
             switcherActive: false,
             switcherCancelled: false,
             switcherReferenceX: 0,
+            gestureDelta: {x: 0, y: 0},
             pressStart: {x: 0, y: 0},
             dragOffset: {x: 0, y: 0},
             activeAction: Action.none,
@@ -147,6 +149,8 @@ export default class TouchNavExtension extends Extension {
     disable() {
         this._cancelLongPressTimer();
         this._endWindowSwitcher({commit: false});
+        this._clearSwitcherSafetyTimeout();
+        this._releaseCommonModifiers();
 
         this._settingsSignalIds?.forEach(id => this._settings.disconnect(id));
         this._settingsSignalIds = [];
@@ -314,6 +318,7 @@ export default class TouchNavExtension extends Extension {
 
     _onPressBegin(x, y) {
         this._cancelLongPressTimer();
+        this._releaseCommonModifiers();
         this._ensureHomePosition();
 
         const [bx, by] = this._floatingButton.get_position();
@@ -324,6 +329,7 @@ export default class TouchNavExtension extends Extension {
         this._floatingState.switcherActive = false;
         this._floatingState.switcherCancelled = false;
         this._floatingState.switcherReferenceX = x;
+        this._floatingState.gestureDelta = {x: 0, y: 0};
         this._floatingState.pressStart = {x, y};
         this._floatingState.dragOffset = {x: x - bx, y: y - by};
 
@@ -362,6 +368,7 @@ export default class TouchNavExtension extends Extension {
 
         const action = this._detectSwipeAction(dx, dy);
         state.activeAction = action;
+        state.gestureDelta = {x: dx, y: dy};
 
         this._moveButtonWithGestureNudge(dx, dy);
 
@@ -398,10 +405,8 @@ export default class TouchNavExtension extends Extension {
             if (state.switcherActive)
                 this._endWindowSwitcher({commit: !state.switcherCancelled});
             else {
-                const [x, y] = this._floatingButton.get_position();
-                const dx = x - state.homePosition.x;
-                const dy = y - state.homePosition.y;
-                const committed = Math.hypot(dx, dy) >= GESTURE_COMMIT_DISTANCE && state.activeAction !== Action.none;
+                const committed = Math.hypot(state.gestureDelta.x, state.gestureDelta.y) >= GESTURE_COMMIT_DISTANCE &&
+                    state.activeAction !== Action.none;
 
                 if (committed) {
                     this._runAction(state.activeAction, {fromGesture: true});
@@ -413,8 +418,10 @@ export default class TouchNavExtension extends Extension {
             state.activeAction = Action.none;
             state.switcherActive = false;
             state.switcherCancelled = false;
+            state.gestureDelta = {x: 0, y: 0};
             this._snapToHomePosition({animate: true});
             this._setVisualState('idle');
+            this._releaseCommonModifiers();
             return;
         }
 
@@ -424,6 +431,7 @@ export default class TouchNavExtension extends Extension {
             this._setVisualState('idle');
             return GLib.SOURCE_REMOVE;
         });
+        this._releaseCommonModifiers();
     }
 
     _cancelLongPressTimer() {
@@ -575,6 +583,7 @@ export default class TouchNavExtension extends Extension {
         state.switcherActive = true;
         state.switcherCancelled = false;
         state.switcherReferenceX = pointerX;
+        this._armSwitcherSafetyTimeout();
     }
 
     _updateWindowSwitcherJoystick(pointerX, dx, dy) {
@@ -591,6 +600,8 @@ export default class TouchNavExtension extends Extension {
         if (state.switcherCancelled)
             return;
 
+        this._armSwitcherSafetyTimeout();
+
         while (pointerX - state.switcherReferenceX >= SWITCHER_STEP_DISTANCE) {
             this._sendTabStep(+1);
             state.switcherReferenceX += SWITCHER_STEP_DISTANCE;
@@ -603,12 +614,30 @@ export default class TouchNavExtension extends Extension {
     }
 
     _endWindowSwitcher({commit}) {
+        this._clearSwitcherSafetyTimeout();
         if (this._floatingState.switcherActive && !commit)
             this._tapKey(Clutter.KEY_Escape);
 
         this._floatingState.switcherActive = false;
         this._floatingState.switcherCancelled = false;
         this._releaseAlt();
+        this._releaseCommonModifiers();
+    }
+
+    _armSwitcherSafetyTimeout() {
+        this._clearSwitcherSafetyTimeout();
+        this._switcherSafetyTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 2400, () => {
+            this._switcherSafetyTimeoutId = 0;
+            this._endWindowSwitcher({commit: false});
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
+    _clearSwitcherSafetyTimeout() {
+        if (!this._switcherSafetyTimeoutId)
+            return;
+        GLib.source_remove(this._switcherSafetyTimeoutId);
+        this._switcherSafetyTimeoutId = 0;
     }
 
     _triggerWindowSwitcherQuick() {
@@ -991,6 +1020,14 @@ export default class TouchNavExtension extends Extension {
             return;
 
         this._notifyKey(Clutter.KEY_Alt_L, Clutter.KeyState.RELEASED);
+        this._altHeld = false;
+    }
+
+    _releaseCommonModifiers() {
+        if (!this._virtualKeyboardDevice)
+            return;
+        this._notifyKey(Clutter.KEY_Alt_L, Clutter.KeyState.RELEASED);
+        this._notifyKey(Clutter.KEY_Shift_L, Clutter.KeyState.RELEASED);
         this._altHeld = false;
     }
 

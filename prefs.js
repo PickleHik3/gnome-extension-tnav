@@ -15,7 +15,6 @@ export default class TouchNavPrefs extends ExtensionPreferences {
         const placement = new Adw.PreferencesGroup({title: 'Placement'});
         const floatingRow = new Adw.SwitchRow({
             title: 'Floating',
-            subtitle: 'Show as movable on-screen button',
         });
         settings.bind('floating', floatingRow, 'active', 0);
         placement.add(floatingRow);
@@ -58,15 +57,13 @@ export default class TouchNavPrefs extends ExtensionPreferences {
         appearance.add(opacityRow);
 
         const useDefaultRow = new Adw.SwitchRow({
-            title: 'Use GNOME Default Color',
-            subtitle: 'Use default Touchnav GNOME-style floating color',
+            title: 'Use System Accent Color',
         });
         settings.bind('floating-use-gnome-default-color', useDefaultRow, 'active', 0);
         appearance.add(useDefaultRow);
 
         const colorRow = new Adw.ActionRow({
             title: 'Floating Color',
-            subtitle: 'Custom color (used when GNOME default color is disabled)',
         });
         const colorButton = new Gtk.ColorButton({valign: Gtk.Align.CENTER});
         colorRow.add_suffix(colorButton);
