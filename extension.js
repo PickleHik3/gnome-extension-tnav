@@ -599,6 +599,18 @@ export default class TouchNavExtension extends Extension {
     }
 
     _loadSavedHomePosition() {
+        const settingsPos = this._loadSavedHomePositionFromSettings();
+        if (settingsPos)
+            return settingsPos;
+        return this._loadSavedHomePositionFromFile();
+    }
+
+    _saveHomePosition() {
+        this._saveHomePositionToSettings();
+        this._saveHomePositionToFile();
+    }
+
+    _loadSavedHomePositionFromSettings() {
         if (!this._settings || !this._hasSetting('floating-home-x') || !this._hasSetting('floating-home-y'))
             return null;
 
@@ -609,7 +621,7 @@ export default class TouchNavExtension extends Extension {
         return {x, y};
     }
 
-    _saveHomePosition() {
+    _saveHomePositionToSettings() {
         if (!this._settings || !this._floatingState.homePosition)
             return;
         if (!this._hasSetting('floating-home-x') || !this._hasSetting('floating-home-y'))
@@ -617,6 +629,50 @@ export default class TouchNavExtension extends Extension {
 
         this._settings.set_int('floating-home-x', Math.round(this._floatingState.homePosition.x));
         this._settings.set_int('floating-home-y', Math.round(this._floatingState.homePosition.y));
+    }
+
+    _loadSavedHomePositionFromFile() {
+        try {
+            const filePath = `${GLib.get_user_config_dir()}/touchnav/state.json`;
+            const file = Gio.File.new_for_path(filePath);
+            if (!file.query_exists(null))
+                return null;
+
+            const [ok, raw] = GLib.file_get_contents(filePath);
+            if (!ok)
+                return null;
+
+            const text = typeof raw === 'string' ? raw : new TextDecoder().decode(raw);
+            const data = JSON.parse(text);
+            const x = Number(data?.x);
+            const y = Number(data?.y);
+            if (!Number.isFinite(x) || !Number.isFinite(y))
+                return null;
+            if (x < 0 || y < 0)
+                return null;
+            return {x: Math.round(x), y: Math.round(y)};
+        } catch (_e) {
+            return null;
+        }
+    }
+
+    _saveHomePositionToFile() {
+        if (!this._floatingState.homePosition)
+            return;
+
+        try {
+            const dir = Gio.File.new_for_path(`${GLib.get_user_config_dir()}/touchnav`);
+            if (!dir.query_exists(null))
+                dir.make_directory_with_parents(null);
+
+            const filePath = `${GLib.get_user_config_dir()}/touchnav/state.json`;
+            const payload = JSON.stringify({
+                x: Math.round(this._floatingState.homePosition.x),
+                y: Math.round(this._floatingState.homePosition.y),
+            });
+            GLib.file_set_contents(filePath, payload);
+        } catch (_e) {
+        }
     }
 
     _monitorForPoint(x, y) {
