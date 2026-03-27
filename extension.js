@@ -83,6 +83,7 @@ export default class TouchNavExtension extends Extension {
             activeAction: Action.none,
             longPressTimeoutId: 0,
             homePosition: null,
+            homeLoadedFromSaved: false,
         };
 
         try {
@@ -258,7 +259,7 @@ export default class TouchNavExtension extends Extension {
 
         this._floatingButton.visible = true;
         this._ensureHomePosition();
-        this._snapHomeToNearestEdge();
+        this._normalizeHomePosition({snapToEdge: !this._floatingState.homeLoadedFromSaved});
         this._saveHomePosition();
         this._snapToHomePosition({animate: false});
         this._setVisualState('idle');
@@ -297,7 +298,7 @@ export default class TouchNavExtension extends Extension {
         }
 
         this._ensureHomePosition();
-        this._snapHomeToNearestEdge();
+        this._normalizeHomePosition({snapToEdge: !this._floatingState.homeLoadedFromSaved});
         this._snapToHomePosition({animate: false});
         this._setVisualState('idle');
     }
@@ -369,6 +370,7 @@ export default class TouchNavExtension extends Extension {
 
         if (saved) {
             this._floatingState.homePosition = saved;
+            this._floatingState.homeLoadedFromSaved = true;
             return;
         }
 
@@ -376,6 +378,7 @@ export default class TouchNavExtension extends Extension {
             x: monitor.x + monitor.width - size - margin,
             y: monitor.y + monitor.height - size - margin,
         };
+        this._floatingState.homeLoadedFromSaved = false;
     }
 
     _onCapturedEvent(event) {
@@ -596,6 +599,34 @@ export default class TouchNavExtension extends Extension {
             monitor.y + margin,
             Math.min(this._floatingState.homePosition.y, monitor.y + monitor.height - size - margin),
         );
+    }
+
+    _clampHomeToMonitorBounds() {
+        if (!this._floatingButton || !this._floatingState.homePosition)
+            return;
+
+        const size = this._floatingButton.width;
+        const monitor = this._monitorForPoint(this._floatingState.homePosition.x + size / 2, this._floatingState.homePosition.y + size / 2);
+        if (!monitor)
+            return;
+
+        const sf = St.ThemeContext.get_for_stage(global.stage).scaleFactor;
+        const margin = Math.floor(8 * sf);
+        this._floatingState.homePosition.x = Math.max(
+            monitor.x + margin,
+            Math.min(this._floatingState.homePosition.x, monitor.x + monitor.width - size - margin),
+        );
+        this._floatingState.homePosition.y = Math.max(
+            monitor.y + margin,
+            Math.min(this._floatingState.homePosition.y, monitor.y + monitor.height - size - margin),
+        );
+    }
+
+    _normalizeHomePosition({snapToEdge}) {
+        if (snapToEdge)
+            this._snapHomeToNearestEdge();
+        else
+            this._clampHomeToMonitorBounds();
     }
 
     _loadSavedHomePosition() {
