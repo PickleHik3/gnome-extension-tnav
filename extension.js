@@ -737,8 +737,6 @@ export default class TouchNavExtension extends Extension {
 
     _startWindowSwitcherJoystick() {
         const state = this._floatingState;
-        this._pressAlt();
-        this._sendTabStep(+1);
         state.switcherActive = true;
         state.switcherCancelled = false;
         state.switcherReferenceX = state.pressStart.x;
@@ -776,12 +774,8 @@ export default class TouchNavExtension extends Extension {
 
     _endWindowSwitcher({commit}) {
         this._clearSwitcherSafetyTimeout();
-        if (this._floatingState.switcherActive && !commit)
-            this._tapKey(Clutter.KEY_Escape);
-
         this._floatingState.switcherActive = false;
         this._floatingState.switcherCancelled = false;
-        this._releaseAlt();
         this._releaseCommonModifiers();
     }
 
@@ -802,9 +796,7 @@ export default class TouchNavExtension extends Extension {
     }
 
     _triggerWindowSwitcherQuick() {
-        this._pressAlt();
         this._sendTabStep(+1);
-        this._releaseAlt();
     }
 
     _setVisualState(state) {
@@ -1226,6 +1218,7 @@ export default class TouchNavExtension extends Extension {
         if (!this._virtualKeyboardDevice)
             return;
 
+        this._notifyKey(Clutter.KEY_Alt_L, Clutter.KeyState.PRESSED);
         if (direction < 0)
             this._notifyKey(Clutter.KEY_Shift_L, Clutter.KeyState.PRESSED);
 
@@ -1233,6 +1226,8 @@ export default class TouchNavExtension extends Extension {
 
         if (direction < 0)
             this._notifyKey(Clutter.KEY_Shift_L, Clutter.KeyState.RELEASED);
+        this._notifyKey(Clutter.KEY_Alt_L, Clutter.KeyState.RELEASED);
+        this._altHeld = false;
     }
 
     _pressAlt() {
