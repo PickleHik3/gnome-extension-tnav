@@ -456,22 +456,22 @@ export default class TouchNavExtension extends Extension {
             return;
 
         const action = this._detectSwipeAction(dx, dy);
-        state.activeAction = action;
         state.gestureDelta = {x: dx, y: dy};
 
         this._moveButtonWithGestureNudge(dx, dy);
 
-        if (state.switcherActive && action !== Action.windowSwitcherJoystick)
-            this._endWindowSwitcher({commit: false});
+        if (state.switcherActive) {
+            this._updateWindowSwitcherJoystick(x, dx, dy);
+            this._setVisualState(`preview-${Action.windowSwitcherJoystick}`);
+            return;
+        }
 
         if (action === Action.windowSwitcherJoystick) {
             if (!state.switcherActive && distance >= GESTURE_COMMIT_DISTANCE)
                 this._startWindowSwitcherJoystick(x);
-
-            if (state.switcherActive)
-                this._updateWindowSwitcherJoystick(x, dx, dy);
         }
 
+        state.activeAction = action;
         this._setVisualState(`preview-${action}`);
     }
 
@@ -1049,12 +1049,50 @@ export default class TouchNavExtension extends Extension {
 
     _triggerBack() {
         const handled = this._smartBack();
-        if (!handled) {
-            this._tapKey(Clutter.KEY_Escape);
-            this._pressAlt();
-            this._tapKey(Clutter.KEY_Left);
-            this._releaseAlt();
+        if (handled)
+            return;
+
+        if (this._looksLikeBrowser(global.display.focus_window)) {
+            if (this._tapBackKey())
+                return;
         }
+
+        this._sendAltLeftCombo();
+    }
+
+    _looksLikeBrowser(window) {
+        const wmClass = window?.get_wm_class?.();
+        if (!wmClass)
+            return false;
+        const c = wmClass.toLowerCase();
+        return (
+            c.includes('firefox') ||
+            c.includes('chrom') ||
+            c.includes('brave') ||
+            c.includes('vivaldi') ||
+            c.includes('edge') ||
+            c.includes('epiphany')
+        );
+    }
+
+    _tapBackKey() {
+        if (!this._virtualKeyboardDevice)
+            return false;
+        const key = Clutter.KEY_XF86Back ?? Clutter.KEY_Back;
+        if (!key)
+            return false;
+        this._tapKey(key);
+        return true;
+    }
+
+    _sendAltLeftCombo() {
+        if (!this._virtualKeyboardDevice)
+            return;
+        this._notifyKey(Clutter.KEY_Alt_L, Clutter.KeyState.PRESSED);
+        this._notifyKey(Clutter.KEY_Left, Clutter.KeyState.PRESSED);
+        this._notifyKey(Clutter.KEY_Left, Clutter.KeyState.RELEASED);
+        this._notifyKey(Clutter.KEY_Alt_L, Clutter.KeyState.RELEASED);
+        this._altHeld = false;
     }
 
     _smartBack() {

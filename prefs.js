@@ -103,7 +103,7 @@ export default class TouchNavPrefs extends ExtensionPreferences {
                 'Show Desktop',
                 'Workspace Left',
                 'Workspace Right',
-                'Window Switcher (Joystick)',
+                'Alt Tab',
                 'Close Window',
             ],
         };
