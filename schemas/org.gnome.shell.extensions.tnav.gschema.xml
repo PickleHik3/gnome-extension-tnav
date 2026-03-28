@@ -49,6 +49,16 @@
       <description>Saved Y coordinate for floating button home position.</description>
     </key>
 
+    <key name="floating-home-edge" type="s">
+      <default>'right'</default>
+      <choices>
+        <choice value='left'/>
+        <choice value='right'/>
+      </choices>
+      <summary>Floating home edge side</summary>
+      <description>Saved edge side for floating button home position.</description>
+    </key>
+
     <key name="click-action" type="s">
       <default>'back'</default>
       <choices>

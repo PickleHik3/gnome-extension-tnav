@@ -84,6 +84,7 @@ export default class TouchNavExtension extends Extension {
             longPressTimeoutId: 0,
             homePosition: null,
             homeLoadedFromSaved: false,
+            homeSavedEdge: null,
         };
 
         try {
@@ -369,8 +370,9 @@ export default class TouchNavExtension extends Extension {
         const saved = this._loadSavedHomePosition();
 
         if (saved) {
-            this._floatingState.homePosition = saved;
+            this._floatingState.homePosition = {x: saved.x, y: saved.y};
             this._floatingState.homeLoadedFromSaved = true;
+            this._floatingState.homeSavedEdge = saved.edge ?? null;
             return;
         }
 
@@ -379,6 +381,7 @@ export default class TouchNavExtension extends Extension {
             y: monitor.y + monitor.height - size - margin,
         };
         this._floatingState.homeLoadedFromSaved = false;
+        this._floatingState.homeSavedEdge = 'right';
     }
 
     _onCapturedEvent(event) {
@@ -623,10 +626,32 @@ export default class TouchNavExtension extends Extension {
     }
 
     _normalizeHomePosition({snapToEdge}) {
-        if (snapToEdge)
+        if (this._floatingState.homeLoadedFromSaved && this._floatingState.homeSavedEdge)
+            this._snapHomeToSpecificEdge(this._floatingState.homeSavedEdge);
+        else if (snapToEdge)
             this._snapHomeToNearestEdge();
         else
             this._clampHomeToMonitorBounds();
+    }
+
+    _snapHomeToSpecificEdge(edge) {
+        if (!this._floatingButton || !this._floatingState.homePosition)
+            return;
+
+        const size = this._floatingButton.width;
+        const monitor = this._monitorForPoint(this._floatingState.homePosition.x + size / 2, this._floatingState.homePosition.y + size / 2);
+        if (!monitor)
+            return;
+
+        const sf = St.ThemeContext.get_for_stage(global.stage).scaleFactor;
+        const margin = Math.floor(8 * sf);
+        this._floatingState.homePosition.x = edge === 'left'
+            ? monitor.x + margin
+            : monitor.x + monitor.width - size - margin;
+        this._floatingState.homePosition.y = Math.max(
+            monitor.y + margin,
+            Math.min(this._floatingState.homePosition.y, monitor.y + monitor.height - size - margin),
+        );
     }
 
     _loadSavedHomePosition() {
@@ -647,9 +672,12 @@ export default class TouchNavExtension extends Extension {
 
         const x = this._settings.get_int('floating-home-x');
         const y = this._settings.get_int('floating-home-y');
+        const edge = this._hasSetting('floating-home-edge')
+            ? this._settings.get_string('floating-home-edge')
+            : null;
         if (x < 0 || y < 0)
             return null;
-        return {x, y};
+        return {x, y, edge: edge === 'left' || edge === 'right' ? edge : null};
     }
 
     _saveHomePositionToSettings() {
@@ -658,8 +686,12 @@ export default class TouchNavExtension extends Extension {
         if (!this._hasSetting('floating-home-x') || !this._hasSetting('floating-home-y'))
             return;
 
+        const edge = this._detectEdgeForPosition(this._floatingState.homePosition);
         this._settings.set_int('floating-home-x', Math.round(this._floatingState.homePosition.x));
         this._settings.set_int('floating-home-y', Math.round(this._floatingState.homePosition.y));
+        if (this._hasSetting('floating-home-edge'))
+            this._settings.set_string('floating-home-edge', edge);
+        this._floatingState.homeSavedEdge = edge;
     }
 
     _loadSavedHomePositionFromFile() {
@@ -677,11 +709,12 @@ export default class TouchNavExtension extends Extension {
             const data = JSON.parse(text);
             const x = Number(data?.x);
             const y = Number(data?.y);
+            const edge = data?.edge === 'left' || data?.edge === 'right' ? data.edge : null;
             if (!Number.isFinite(x) || !Number.isFinite(y))
                 return null;
             if (x < 0 || y < 0)
                 return null;
-            return {x: Math.round(x), y: Math.round(y)};
+            return {x: Math.round(x), y: Math.round(y), edge};
         } catch (_e) {
             return null;
         }
@@ -700,10 +733,20 @@ export default class TouchNavExtension extends Extension {
             const payload = JSON.stringify({
                 x: Math.round(this._floatingState.homePosition.x),
                 y: Math.round(this._floatingState.homePosition.y),
+                edge: this._detectEdgeForPosition(this._floatingState.homePosition),
             });
             GLib.file_set_contents(filePath, payload);
         } catch (_e) {
         }
+    }
+
+    _detectEdgeForPosition(position) {
+        const size = this._floatingButton?.width ?? 54;
+        const monitor = this._monitorForPoint(position.x + size / 2, position.y + size / 2);
+        if (!monitor)
+            return 'right';
+        const centerX = monitor.x + monitor.width / 2;
+        return position.x + size / 2 < centerX ? 'left' : 'right';
     }
 
     _monitorForPoint(x, y) {
